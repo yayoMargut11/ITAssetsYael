@@ -2,10 +2,20 @@
 
 API REST en ASP.NET Core 8 + SQL Server (ADO.NET + Stored Procedures) para administrar activos de TI,
 sus asignaciones a colaboradores, proveedores y el historial completo de movimientos.
+Incluye un frontend opcional en Angular 20.
+
+```
+.
+├── ITAssets.Api/      API (.NET 8) + scripts SQL en Database/
+├── ITAssets.Tests/    Pruebas unitarias y de integración
+├── itassets-web/      Frontend Angular (opcional)
+└── docs/              Colección de Postman
+```
 
 ## Requisitos
 - .NET SDK 8+
 - SQL Server 2019/2022 (Docker en Mac M1: ver abajo)
+- Node.js 20.19+ o 22.12+ (solo para el frontend); npm o yarn, usa uno solo
 
 ## Instalación
 
@@ -48,7 +58,17 @@ Si falta alguna, la API se niega a arrancar con un mensaje claro. Ningún secret
 dotnet run --project ITAssets.Api      # Swagger en http://localhost:<puerto>/swagger
 ```
 
-### 4. Usuarios de prueba
+### 4. Ejecutar el frontend (opcional)
+En otra terminal, con la API ya corriendo:
+```bash
+cd itassets-web
+# Edita proxy.conf.json: "target" debe ser la URL/puerto que imprime `dotnet run` (ej. http://localhost:5000)
+npm install && npm start        # o: yarn install && yarn start
+```
+Abre http://localhost:4200. El proxy de desarrollo reenvía `/api/*` a la API, por lo que **no se requiere configurar CORS**.
+Si cambias el puerto en `proxy.conf.json`, reinicia `npm start`.
+
+### 5. Usuarios de prueba
 | Usuario | Contraseña | Rol |
 |---|---|---|
 | `admin` | `Admin#2026` | Administrador |
@@ -67,6 +87,30 @@ En Swagger: `POST /api/auth/login` → copiar el `token` → botón **Authorize*
 | `PATCH /api/employees/{id}/active` | ✔ | ✘ |
 | `GET /api/suppliers`, `GET /api/suppliers/{id}` | ✔ | ✔ |
 | `POST /api/suppliers` | ✔ | ✘ |
+
+## Frontend (Angular)
+SPA en Angular 20 con componentes standalone, signals y formularios reactivos. Consume la API vía proxy.
+
+| Pantalla | Ruta | Descripción |
+|---|---|---|
+| Login | `/login` | Autenticación con JWT; muestra errores del servidor (credenciales, cuenta bloqueada, rate limiting) y aviso de sesión expirada |
+| Listado de activos | `/assets` | Filtros `search`, `status`, `category` y paginación del lado del servidor |
+| Alta de activo | `/assets/new` | Solo Administrador; el proveedor es obligatorio si el activo es *Arrendado* |
+| Detalle | `/assets/:id` | Datos del activo, **asignación** (si está Disponible), **devolución** (si está Asignado) e **historial** paginado |
+
+Estructura: `src/app/core/` (modelos, `AuthService`, interceptor, guards, `ApiService`, manejo de errores) y `src/app/pages/` (una carpeta por pantalla).
+
+Decisiones del frontend:
+- **Token en `sessionStorage`** (se borra al cerrar la pestaña). Ni `localStorage` ni `sessionStorage` son inmunes a XSS; en producción lo recomendable es una cookie `HttpOnly`.
+- **Interceptor HTTP**: agrega el JWT a cada petición a `/api` y cierra la sesión ante un 401.
+- **Guards de ruta** (`authGuard`, `adminGuard`) solo mejoran la experiencia: la seguridad real la impone la API en cada llamada (validación de token y rol).
+- **Validaciones en el cliente** solo como ayuda de UX; la fuente de verdad es el servidor y sus mensajes (`detail`) se muestran al usuario.
+- **Fechas**: la API las serializa en UTC sin la «Z»; el cliente la agrega para mostrar la hora local correcta en el historial.
+- Tras asignar o devolver (incluso si hay error, p. ej. 409 por concurrencia) se **recarga el estado real** del activo.
+
+## Postman
+Importa `docs/ITAssets.postman_collection.json` y `docs/ITAssets.postman_environment.json`, ajusta `baseUrl` al puerto de la API y ejecuta la colección completa en orden (carpetas 1 a 5).
+Nota: repetir 5 veces el login con contraseña incorrecta bloquea la cuenta `admin` 15 minutos.
 
 ## Errores
 Todas las respuestas de error usan `application/problem+json` con `status`, `title`, `detail`, `code` (estable, para el cliente) y `traceId`.
@@ -96,17 +140,18 @@ dotnet test
 - Unitarias: mapeo de errores SQL, validaciones de entrada, emisión/validación/expiración de JWT, flujo de login (bloqueo, credenciales, inactivos).
 - Integración (SQL Server real): 10 asignaciones simultáneas del mismo activo con `Task.WhenAll` → solo 1 éxito; colaborador inactivo; devolución sin asignación; ciclo asignar → devolver → reasignar con historial; activo retirado.
 
-## Uso de IA  *(completa con tu información real)*
+## Uso de IA  
 - Herramienta: Claude (Anthropic).
-- En qué parte: <diseño del esquema, SPs, boilerplate de la API, pruebas, README: ajusta a lo que realmente hayas usado>.
-- Validaciones que realicé: <p. ej. ejecuté los scripts y probé los SPs manualmente, corrí las pruebas, probé los endpoints en Swagger, revisé el candado de concurrencia>.
-- Decisiones técnicas propias: <p. ej. permisos por rol, política de bloqueo, estructura de capas>.
+- En qué parte: <diseño de frontend y redaccion de README: debido al tiempo ejecute la parte Web(opcional) a la IA>.
+- Validaciones que realicé: <p. Realice el recorrido de los archivos y configure las opcikones para poder probarlo con mi ambiente local>.
+- Decisiones técnicas propias: <p. Estructra del proyecto y que se hiciera con las versiones node.js 22 y Angular 20>.
 
 ## Tiempo invertido
-<horas aproximadas: completar>
+- Ambiente: Aproximadamente 6 horas en investigar y ambientar de manera optima mi ambiente MAC M1 con VS Code, Docker y DBeaver
+- Codigo: Aproximadamente 24 horas en la creacion, diseño , desarrollo, pruebas e implementacion del proyecto
 
 ## Pendientes y riesgos
-- **Frontend**: no incluido (opcional).
+- **Frontend**: faltan edición de activos y cambio de estado desde la UI (la API ya los soporta), pantallas de colaboradores y proveedores, y pruebas unitarias/e2e del frontend. Para producción hay que servirlo bajo el mismo dominio que la API o habilitar CORS para su origen.
 - **Cambio de contraseña / gestión de usuarios** y *refresh tokens*: no implementados; el JWT dura 60 min.
 - **Rate limiting** es en memoria por instancia; con varias instancias haría falta un almacén compartido (p. ej. Redis). Detrás de un proxy hay que configurar `ForwardedHeaders` para ver la IP real.
 - **Edición de proveedores/colaboradores** (más allá de alta, consulta y activar/desactivar) y **baja lógica de proveedores**.
