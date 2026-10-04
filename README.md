@@ -142,8 +142,8 @@ dotnet test
 
 ## Uso de IA  
 - Herramienta: Claude (Anthropic).
-- En qué parte: <diseño de frontend y redaccion de README: debido al tiempo ejecute la parte Web(opcional) a la IA>.
-- Validaciones que realicé: <p. Realice el recorrido de los archivos y configure las opcikones para poder probarlo con mi ambiente local>.
+- En qué parte: diseño de frontend y redaccion de README: debido al tiempo ejecute la parte Web(opcional) a la IA.
+- Validaciones que realicé: <p. Realice el recorrido de los archivos y configure las opciones para poder probarlo con mi ambiente local.
 - Decisiones técnicas propias: <p. Estructra del proyecto y que se hiciera con las versiones node.js 22 y Angular 20>.
 
 ## Tiempo invertido
